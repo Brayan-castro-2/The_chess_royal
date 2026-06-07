@@ -800,9 +800,9 @@ function initMenu() {
     state.myId = playerId;
     state.myName = playerName;
     state.roomCode = roomCode;
-    q('#lobby-name').value = playerName;
-    q('#join-code-display').textContent = roomCode;
-    q('#lobby-status').textContent = '¡Oponente encontrado! Preparando...';
+    
+    const nameInput = q('#lobby-name'); if (nameInput) nameInput.value = playerName;
+    const codeDisp = q('#display-room-code'); if (codeDisp) codeDisp.textContent = roomCode;
     
     // Simulate room join UI state so players see the room briefly before the game starts
     showScreen('waiting');
