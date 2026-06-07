@@ -454,6 +454,12 @@ input  { font-family:inherit; outline:none; }
 .flex   { display:flex; }
 .gap-sm { gap:.4rem; }
 
+/* ── GOOGLE TRANSLATE SEAMLESS ── */
+.goog-te-banner-frame.skiptranslate { display: none !important; }
+body { top: 0px !important; }
+#goog-gt-tt { display: none !important; }
+.goog-text-highlight { background-color: transparent !important; box-shadow: none !important; }
+
 /* ════════════════════════════════════════
    DESKTOP ≥700px
 ════════════════════════════════════════ */
