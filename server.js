@@ -71,7 +71,7 @@ PUZZLES = generatePuzzles();
 // ─────────────────────────────────────────────
 const rooms       = new Map();
 const playerRooms = new Map();
-const matchQueues = { 1: [], 2: [], 3: [] };
+const globalMatchQueue = [];
 
 function genCode() {
   const ch = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -513,12 +513,11 @@ io.on('connection', socket => {
   socket.on('find_match', ({ playerName = 'Jugador', difficulty = 1 }) => {
     const name = playerName.slice(0, 20);
     const d = Number(difficulty);
-    const q = matchQueues[d];
     
     // Find valid waiting opponent
     let opponent = null;
-    while (q && q.length > 0) {
-      const waitEntry = q.shift();
+    while (globalMatchQueue.length > 0) {
+      const waitEntry = globalMatchQueue.shift();
       if (waitEntry.socket.connected) { opponent = waitEntry; break; }
     }
 
@@ -541,15 +540,13 @@ io.on('connection', socket => {
 
       room.timer = setTimeout(() => { if (rooms.has(room.id)) startAnalysis(room); }, 1800);
     } else {
-      if (q) q.push({ socket, playerName: name });
+      globalMatchQueue.push({ socket, playerName: name });
     }
   });
 
   socket.on('cancel_match', () => {
-    Object.values(matchQueues).forEach(q => {
-      const idx = q.findIndex(e => e.socket.id === socket.id);
-      if (idx !== -1) q.splice(idx, 1);
-    });
+    const idx = globalMatchQueue.findIndex(e => e.socket.id === socket.id);
+    if (idx !== -1) globalMatchQueue.splice(idx, 1);
   });
 
   socket.on('solo_next', () => {
@@ -559,10 +556,8 @@ io.on('connection', socket => {
   });
 
   socket.on('disconnect', () => {
-    Object.values(matchQueues).forEach(q => {
-      const idx = q.findIndex(e => e.socket.id === socket.id);
-      if (idx !== -1) q.splice(idx, 1);
-    });
+    const idx = globalMatchQueue.findIndex(e => e.socket.id === socket.id);
+    if (idx !== -1) globalMatchQueue.splice(idx, 1);
 
     const code = playerRooms.get(socket.id);
     if (code) {
