@@ -462,3 +462,25 @@ input  { font-family:inherit; outline:none; }
   .game-side  { width:230px; flex-shrink:0; }
   .board-cell { width:clamp(100px,17vw,138px); }
 }
+
+/* ════════════════════════════════════════
+   MOBILE RESPONSIVENESS ≤480px
+════════════════════════════════════════ */
+@media (max-width:480px) {
+  .home-logo { font-size: clamp(2rem, 8vw, 2.5rem); }
+  .home-crown { font-size: 3.5rem; }
+  
+  .board-cell { width: clamp(75px, 28vw, 90px); }
+  .piece { font-size: clamp(2rem, 9vw, 2.8rem); }
+  
+  .game-header { padding: 0.4rem 0.5rem; gap: 0.3rem; }
+  .score-name { font-size: 0.65rem; max-width: 60px; }
+  .phase-badge { padding: 0.2rem 0.5rem; font-size: 0.65rem; }
+  .timer-wrap { width: 38px; height: 38px; }
+  
+  .card, .overlay-card { padding: 1.5rem 1rem; }
+  .card-title, .overlay-title { font-size: 1.3rem; }
+  
+  .goal-cell { width: clamp(26px, 8vw, 36px); }
+  .goal-cell .piece { font-size: clamp(0.9rem, 3.5vw, 1.2rem); }
+}

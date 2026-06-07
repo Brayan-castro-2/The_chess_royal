@@ -90,6 +90,23 @@ function selectPuzzle(room) {
   return p;
 }
 
+/** Generate a new puzzle dynamically starting from a specific board state */
+function generateNextPuzzle(startBoard) {
+  const map = GL.bfsAll(startBoard, 9);
+  const reachable = Array.from(map.values()).filter(x => x.dist >= 3);
+  if (reachable.length === 0) {
+    // Fallback to completely random puzzle if no suitable goal found
+    return PUZZLES[Math.floor(Math.random() * PUZZLES.length)];
+  }
+  const target = reachable[Math.floor(Math.random() * reachable.length)];
+  return {
+    start: [...startBoard],
+    goal: [...target.board],
+    minMoves: target.dist,
+    id: 'dyn_' + Date.now() + Math.floor(Math.random() * 1000)
+  };
+}
+
 function makeRoom(hostId, hostName, difficulty, isSolo = false, isCpu = false) {
   const code = genCode();
   const room = {
@@ -128,7 +145,13 @@ function startTick(room, seconds) {
 // ─────────────────────────────────────────────
 function startAnalysis(room) {
   clearTimers(room);
-  const puzzle = selectPuzzle(room);
+  let puzzle;
+  if (room.round && room.round.currentGoal) {
+    puzzle = generateNextPuzzle(room.round.currentGoal);
+    room.usedIds.add(puzzle.id);
+  } else {
+    puzzle = selectPuzzle(room);
+  }
   room.currentPuzzle = puzzle;
   room.phase = 'analyzing';
   room.round = {
@@ -336,7 +359,13 @@ function endRound(room, winnerId) {
 // SOLO MODE
 // ─────────────────────────────────────────────
 function soloStart(socket, room) {
-  const puzzle = selectPuzzle(room);
+  let puzzle;
+  if (room.round && room.round.currentGoal) {
+    puzzle = generateNextPuzzle(room.round.currentGoal);
+    room.usedIds.add(puzzle.id);
+  } else {
+    puzzle = selectPuzzle(room);
+  }
   room.currentPuzzle = puzzle;
   room.phase = 'solo_playing';
   room.round = { boardState: [...puzzle.start], moveCount: 0, currentGoal: [...puzzle.goal] };
