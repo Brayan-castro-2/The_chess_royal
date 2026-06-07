@@ -518,7 +518,7 @@ function updateTimerUI(left, max) {
 function updateHeader() {
   const me    = state.players.find(p => p.id === state.myId);
   const other = state.isCpu
-    ? { id: 'cpu', name: 'CPU ♟', score: state.cpuScore }
+    ? { id: 'cpu', name: 'CPU', score: state.cpuScore }
     : state.players.find(p => p.id !== state.myId);
 
   const p1name = q('#p1-name'); if(p1name) p1name.textContent = (me?.name || 'Tú').slice(0, 12);
@@ -658,7 +658,7 @@ function showResult({ winnerId, winnerName, moveCount, minMoves, scores }) {
   renderPips('#p2-pips', otherScore);
 
   const isWin = winnerId === state.myId;
-  q('#result-icon').textContent  = !winnerId ? '🤝' : isWin ? '🥇' : '😤';
+  q('#result-icon').textContent  = !winnerId ? '' : isWin ? '' : '';
   q('#result-title').textContent = !winnerId ? 'Sin punto' : isWin ? '¡Lo lograste!' : 'Punto para el rival';
   q('#result-sub').textContent   = !winnerId
     ? 'Nadie resolvió este turno.'
@@ -670,7 +670,7 @@ function showResult({ winnerId, winnerName, moveCount, minMoves, scores }) {
 
   const me    = scores.find(p => p.id === state.myId);
   const other = state.isCpu
-    ? scores.find(p => p.id === 'cpu') || { name:'CPU ♟', score: state.cpuScore }
+    ? scores.find(p => p.id === 'cpu') || { name:'CPU', score: state.cpuScore }
     : scores.find(p => p.id !== state.myId);
 
   q('#res-p1-name').textContent  = me ? me.name : 'Tú';
@@ -683,7 +683,7 @@ function showResult({ winnerId, winnerName, moveCount, minMoves, scores }) {
 
 function showGameOver(winnerId, winnerName, scores) {
   const isMe = winnerId === state.myId;
-  q('#gameover-winner-msg').innerHTML = `El ganador es <strong>${isMe ? 'TÚ 🎉' : (winnerName || 'CPU ♟')}</strong>`;
+  q('#gameover-winner-msg').innerHTML = `El ganador es <strong>${isMe ? 'TÚ' : (winnerName || 'CPU')}</strong>`;
   const fs = q('#final-scores'); fs.innerHTML = '';
   scores.forEach(p => {
     const champ = p.id === winnerId;
@@ -811,7 +811,7 @@ function initMenu() {
       const slot = q(i === 0 ? '#slot-host' : '#slot-guest');
       if (slot) {
         slot.classList.add('filled');
-        slot.querySelector('.player-slot-icon').textContent = '♚';
+        slot.querySelector('.player-slot-icon').textContent = '';
         slot.querySelector('.player-slot-name').textContent = p.name;
       }
     });

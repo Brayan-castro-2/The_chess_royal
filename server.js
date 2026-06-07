@@ -187,7 +187,7 @@ function revealBids(room) {
   rd.activePlayerBid = rd.bids[activeId] ?? 5;
 
   const nameMap = Object.fromEntries(room.players.map(p => [p.id, p.name]));
-  if (room.isCpu) nameMap['cpu'] = 'CPU ♟';
+  if (room.isCpu) nameMap['cpu'] = 'CPU';
 
   io.to(room.id).emit('phase_bid_reveal', {
     bids: rd.bids,
@@ -220,7 +220,7 @@ function startPlaying(room, isSteal) {
 
   const T = 120;
   const nameMap = Object.fromEntries(room.players.map(p => [p.id, p.name]));
-  if (room.isCpu) nameMap['cpu'] = 'CPU ♟';
+  if (room.isCpu) nameMap['cpu'] = 'CPU';
 
   io.to(room.id).emit('phase_playing', {
     phase: isSteal ? 'stealing' : 'playing',
@@ -311,13 +311,13 @@ function endRound(room, winnerId) {
 
   const scores = [
     ...room.players.map(p => ({ id: p.id, name: p.name, score: p.score })),
-    ...(room.isCpu ? [{ id: 'cpu', name: 'CPU ♟', score: room.cpuScore || 0 }] : []),
+    ...(room.isCpu ? [{ id: 'cpu', name: 'CPU', score: room.cpuScore || 0 }] : []),
   ];
   const gameOver = (winner && winner.score >= 6) || (room.isCpu && (room.cpuScore || 0) >= 6);
 
   io.to(room.id).emit('round_end', {
     winnerId,
-    winnerName: winner ? winner.name : (winnerId === 'cpu' ? 'CPU ♟' : null),
+    winnerName: winner ? winner.name : (winnerId === 'cpu' ? 'CPU' : null),
     moveCount: room.round?.moveCount,
     minMoves: room.currentPuzzle.minMoves,
     scores, gameOver,
@@ -386,7 +386,7 @@ io.on('connection', socket => {
     const name = playerName.slice(0, 20);
     const room = makeRoom(socket.id, name, Number(difficulty), false, true);
     room.cpuScore = 0;
-    room.players.push({ id: 'cpu', name: 'CPU ♟', score: 0, isCpu: true });
+    room.players.push({ id: 'cpu', name: 'CPU', score: 0, isCpu: true });
     socket.join(room.id); playerRooms.set(socket.id, room.id);
     socket.emit('cpu_game_started', { roomCode: room.id, playerName: name, difficulty });
     setTimeout(() => { if (rooms.has(room.id)) startAnalysis(room); }, 1200);
