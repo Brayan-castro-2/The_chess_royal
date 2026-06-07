@@ -380,24 +380,39 @@ function soloStart(socket, room) {
 // SOCKET EVENTS
 // ─────────────────────────────────────────────
 io.on('connection', socket => {
-  console.log('+', socket.id);
+  console.log(`[CONNECT] Player connected: ${socket.id}`);
 
   socket.on('create_room', ({ playerName = 'Jugador', difficulty = 1 }) => {
+    console.log(`[CREATE_ROOM] ${playerName} (${socket.id}) requested to create a room. Difficulty: ${difficulty}`);
     const name = playerName.slice(0, 20);
     const room = makeRoom(socket.id, name, Number(difficulty));
     socket.join(room.id); playerRooms.set(socket.id, room.id);
+    console.log(`[ROOM_CREATED] Room ${room.id} created successfully by ${socket.id}`);
     socket.emit('room_created', { roomCode: room.id, playerId: socket.id, playerName: name, difficulty });
   });
 
   socket.on('join_room', ({ roomCode = '', playerName = 'Jugador' }) => {
     const code = roomCode.toUpperCase().trim();
+    console.log(`[JOIN_ROOM] ${playerName} (${socket.id}) attempting to join room: ${code}`);
+    
     const room = rooms.get(code);
-    if (!room)                    return socket.emit('join_error', { message: 'Sala no encontrada.' });
-    if (room.players.length >= 2) return socket.emit('join_error', { message: 'La sala está llena.' });
-    if (room.phase !== 'waiting') return socket.emit('join_error', { message: 'La partida ya comenzó.' });
+    if (!room) {
+      console.log(`[JOIN_ERROR] Room ${code} not found for ${socket.id}. Current rooms:`, Array.from(rooms.keys()));
+      return socket.emit('join_error', { message: 'Sala no encontrada.' });
+    }
+    if (room.players.length >= 2) {
+      console.log(`[JOIN_ERROR] Room ${code} is full.`);
+      return socket.emit('join_error', { message: 'La sala está llena.' });
+    }
+    if (room.phase !== 'waiting') {
+      console.log(`[JOIN_ERROR] Room ${code} already started. Phase: ${room.phase}`);
+      return socket.emit('join_error', { message: 'La partida ya comenzó.' });
+    }
+    
     const name = playerName.slice(0, 20);
     room.players.push({ id: socket.id, name, score: 0, isHost: false });
     socket.join(code); playerRooms.set(socket.id, code);
+    console.log(`[ROOM_JOINED] ${name} (${socket.id}) successfully joined room ${code}`);
     socket.emit('room_joined', {
       roomCode: code, playerId: socket.id, playerName: name,
       players: room.players.map(p => ({ id: p.id, name: p.name, score: p.score })),
@@ -423,10 +438,22 @@ io.on('connection', socket => {
 
   // ── SUBMIT BID ──
   socket.on('submit_bid', ({ bid }) => {
-    const room = rooms.get(playerRooms.get(socket.id));
-    if (!room || room.phase !== 'analyzing') return;
+    console.log(`[SUBMIT_BID] Player ${socket.id} submitted bid: ${bid}`);
+    const roomCode = playerRooms.get(socket.id);
+    const room = rooms.get(roomCode);
+    if (!room) {
+      console.log(`[BID_ERROR] Player ${socket.id} is not in any room. Current playerRooms mapping: ${roomCode}`);
+      return;
+    }
+    if (room.phase !== 'analyzing') {
+      console.log(`[BID_ERROR] Room ${room.id} is not in analyzing phase (current: ${room.phase})`);
+      return;
+    }
+    
     const b = Math.max(1, Math.min(20, parseInt(bid) || 5));
     room.round.bids[socket.id] = b;
+    console.log(`[BID_ACCEPTED] Bid ${b} accepted for ${socket.id} in room ${room.id}`);
+    
     socket.emit('bid_confirmed', { bid: b });
     socket.to(room.id).emit('opponent_bid_in');
     if (room.players.every(p => room.round.bids[p.id] !== undefined) &&
@@ -511,6 +538,7 @@ io.on('connection', socket => {
 
   // ── MATCHMAKING ──
   socket.on('find_match', ({ playerName = 'Jugador', difficulty = 1 }) => {
+    console.log(`[FIND_MATCH] ${playerName} (${socket.id}) searching for match. Diff: ${difficulty}`);
     const name = playerName.slice(0, 20);
     const d = Number(difficulty);
     
@@ -518,7 +546,13 @@ io.on('connection', socket => {
     let opponent = null;
     while (globalMatchQueue.length > 0) {
       const waitEntry = globalMatchQueue.shift();
-      if (waitEntry.socket.connected) { opponent = waitEntry; break; }
+      if (waitEntry.socket.connected) { 
+        opponent = waitEntry; 
+        console.log(`[MATCH_FOUND] Found opponent in queue: ${opponent.playerName} (${opponent.socket.id})`);
+        break; 
+      } else {
+        console.log(`[MATCH_CLEANUP] Removing stale socket from queue: ${waitEntry.socket.id}`);
+      }
     }
 
     if (opponent) {
@@ -528,6 +562,7 @@ io.on('connection', socket => {
       
       room.players.push({ id: socket.id, name, score: 0, isHost: false });
       socket.join(room.id); playerRooms.set(socket.id, room.id);
+      console.log(`[MATCH_SUCCESS] Created room ${room.id} for ${opponent.socket.id} and ${socket.id}`);
 
       const payload = {
         roomCode: room.id,
@@ -540,6 +575,7 @@ io.on('connection', socket => {
 
       room.timer = setTimeout(() => { if (rooms.has(room.id)) startAnalysis(room); }, 1800);
     } else {
+      console.log(`[MATCH_QUEUE] No opponents available. Adding ${socket.id} to queue.`);
       globalMatchQueue.push({ socket, playerName: name });
     }
   });
@@ -556,20 +592,29 @@ io.on('connection', socket => {
   });
 
   socket.on('disconnect', () => {
+    console.log(`[DISCONNECT] Player disconnected: ${socket.id}`);
+    
     const idx = globalMatchQueue.findIndex(e => e.socket.id === socket.id);
-    if (idx !== -1) globalMatchQueue.splice(idx, 1);
+    if (idx !== -1) {
+      console.log(`[DISCONNECT_CLEANUP] Removed ${socket.id} from globalMatchQueue`);
+      globalMatchQueue.splice(idx, 1);
+    }
 
     const code = playerRooms.get(socket.id);
     if (code) {
       const room = rooms.get(code);
       if (room) {
+        console.log(`[DISCONNECT_ROOM] Player ${socket.id} left room ${code}. Notifying opponent.`);
         socket.to(code).emit('opponent_disconnected');
         room.players = room.players.filter(p => p.id !== socket.id);
-        if (room.players.length === 0) { clearTimers(room); rooms.delete(code); }
+        if (room.players.length === 0) { 
+          console.log(`[ROOM_DESTROY] Room ${code} is empty. Destroying.`);
+          clearTimers(room); 
+          rooms.delete(code); 
+        }
       }
       playerRooms.delete(socket.id);
     }
-    console.log('-', socket.id);
   });
 });
 
