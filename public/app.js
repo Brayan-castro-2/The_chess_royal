@@ -88,9 +88,10 @@ socket.on('cpu_game_started', ({ playerName, difficulty }) => {
 socket.on('phase_analyzing', ({ puzzle, timerSeconds, scores, roomDifficulty }) => {
   state.puzzle      = puzzle;
   state.boardState  = [...puzzle.start];
+  state.currentGoal = [...puzzle.goal];
   state.phase       = 'analyzing';
   state.bidSubmitted = false;
-  state.myBid       = Math.max(puzzle.minMoves, 3);
+  state.myBid       = 1;
   state.difficulty  = roomDifficulty ?? state.difficulty;
   state.players     = scores.filter(p => p.id !== 'cpu');
   state.selectedIdx = null; state.legalMoves = [];
@@ -139,6 +140,7 @@ socket.on('phase_playing', ({ phase, activePlayerId, activePlayerBid, boardState
   state.activePlayerId = activePlayerId;
   state.activePlayerBid = activePlayerBid;
   state.boardState     = [...boardState];
+  state.currentGoal    = [...state.puzzle.goal];
   state.moveCount      = 0;
   state.selectedIdx    = null; state.legalMoves = [];
   state.lastFrom       = null; state.lastTo     = null;
@@ -163,14 +165,22 @@ socket.on('phase_playing', ({ phase, activePlayerId, activePlayerBid, boardState
   showPanel('move');
   updateMoveCounter(0, activePlayerBid);
   showTransformPanel(myTurn && state.difficulty >= 2);
+  renderGoal(state.currentGoal);
+  const gb = q('#goal-board'); if(gb) { gb.style.transition = 'none'; gb.style.transform = 'none'; }
   renderBoard(boardState, myTurn);
   if (myTurn) startTimer(timerSeconds);
 });
 
 // ── BOARD UPDATE ──
-socket.on('board_update', ({ boardState, moveCount, won, exceededBid }) => {
+socket.on('board_update', ({ boardState, moveCount, won, exceededBid, currentGoal }) => {
   state.boardState = [...boardState];
   state.moveCount  = moveCount;
+  if (currentGoal && !isAnimatingGoal) {
+    if (JSON.stringify(state.currentGoal) !== JSON.stringify(currentGoal)) {
+      state.currentGoal = [...currentGoal];
+      renderGoal(state.currentGoal);
+    }
+  }
   const myTurn     = isMyTurn();
   renderBoard(boardState, myTurn && !won && !exceededBid);
   updateMoveCounter(moveCount, state.activePlayerBid);
@@ -214,6 +224,7 @@ socket.on('solo_started', ({ difficulty }) => {
 socket.on('solo_puzzle', ({ puzzle, completed, roomDifficulty }) => {
   state.puzzle      = puzzle;
   state.boardState  = [...puzzle.start];
+  state.currentGoal = [...puzzle.goal];
   state.phase       = 'solo_playing';
   state.difficulty  = roomDifficulty ?? state.difficulty;
   state.selectedIdx = null; state.legalMoves = [];
@@ -232,9 +243,15 @@ socket.on('solo_puzzle', ({ puzzle, completed, roomDifficulty }) => {
   q('#p1-name').textContent = state.myName || 'Tú';
 });
 
-socket.on('solo_update', ({ boardState, moveCount, won, minMoves }) => {
+socket.on('solo_update', ({ boardState, moveCount, won, minMoves, currentGoal }) => {
   state.boardState = [...boardState];
   state.moveCount  = moveCount;
+  if (currentGoal && !isAnimatingGoal) {
+    if (JSON.stringify(state.currentGoal) !== JSON.stringify(currentGoal)) {
+      state.currentGoal = [...currentGoal];
+      renderGoal(state.currentGoal);
+    }
+  }
   renderBoard(boardState, !won);
   updateMoveCounter(moveCount, 999);
   if (won) {
@@ -273,12 +290,15 @@ function renderBoard(board, interactive) {
       span.title = GL.PIECE_NAMES[piece] || piece;
       if (interactive) {
         span.style.cursor = 'grab';
+        span.style.pointerEvents = 'auto';
+        span.style.touchAction = 'none';
         span.addEventListener('pointerdown', e => { e.stopPropagation(); startDrag(e, i); });
       }
       cell.appendChild(span);
     }
 
     if (interactive) {
+      cell.style.touchAction = 'none';
       cell.addEventListener('click', () => handleCellClick(i));
     }
     el.appendChild(cell);
@@ -324,13 +344,22 @@ function handleCellClick(idx) {
 // DRAG & DROP (pointer events — works mouse + touch)
 // ─────────────────────────────────────────────
 function startDrag(e, idx) {
+  if (drag.active) return;
   if (!isMyTurn()) return;
   if (!state.boardState[idx]) return;
   e.preventDefault();
 
   state.selectedIdx = idx;
   state.legalMoves  = GL.getValidMoves(state.boardState, idx);
-  renderBoard(state.boardState, true);
+  qq('.board-cell').forEach(c => {
+    const i = parseInt(c.dataset.idx);
+    c.classList.toggle('selected', i === idx);
+    c.classList.toggle('legal', state.legalMoves.includes(i));
+    if (i === idx) {
+      const pieceSpan = c.querySelector('.piece');
+      if (pieceSpan) pieceSpan.style.opacity = '0';
+    }
+  });
 
   // Ghost piece
   const ghost = document.createElement('div');
@@ -366,12 +395,21 @@ function onDragMove(e) {
 }
 
 function onDragEnd(e) {
+  const startIdx = drag.fromIdx;
   cleanDrag();
   const el   = document.elementFromPoint(e.clientX, e.clientY);
   const cell = el?.closest?.('.board-cell');
   if (cell) {
     const toIdx = parseInt(cell.dataset.idx);
-    if (state.legalMoves.includes(toIdx)) { performMove(drag.fromIdx, toIdx); return; }
+    if (state.legalMoves.includes(toIdx)) { performMove(startIdx, toIdx); return; }
+    if (toIdx === startIdx) {
+      const c = qq('.board-cell')[startIdx];
+      if (c) {
+        const pieceSpan = c.querySelector('.piece');
+        if (pieceSpan) pieceSpan.style.opacity = '1';
+      }
+      return;
+    }
   }
   state.selectedIdx = null; state.legalMoves = [];
   renderBoard(state.boardState, true);
@@ -408,16 +446,35 @@ function performMove(fromIdx, toIdx) {
 }
 
 // ─────────────────────────────────────────────
-// TRANSFORMS (called from HTML onclick)
+// TRANSFORMS
 // ─────────────────────────────────────────────
+let isAnimatingGoal = false;
+
 function requestTransform(type) {
-  if (!isMyTurn()) return;
+  if (!isMyTurn() || isAnimatingGoal) return;
+  isAnimatingGoal = true;
   const cost = type === 'rot180' ? 2 : 1;
+
+  const ng = GL.applyTransform(state.currentGoal, type);
+  const el = q('#goal-board');
+  el.style.transition = 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+  if (type === 'rot90') el.style.transform = 'rotate(90deg)';
+  else if (type === 'rot180') el.style.transform = 'rotate(180deg)';
+  else if (type === 'mirH') el.style.transform = 'scaleX(-1)';
+  else if (type === 'mirV') el.style.transform = 'scaleY(-1)';
+
+  setTimeout(() => {
+    el.style.transition = 'none';
+    el.style.transform = 'none';
+    state.currentGoal = ng;
+    renderGoal(ng);
+    isAnimatingGoal = false;
+  }, 400);
+
   if (state.isSolo) socket.emit('solo_transform', { type });
   else              socket.emit('apply_transform', { type });
-  toast(`Transformación aplicada (+${cost} mov.)`);
+  toast(`Objetivo transformado (+${cost} mov.)`);
 }
-window.requestTransform = requestTransform;
 
 // ─────────────────────────────────────────────
 // TIMER
@@ -445,10 +502,14 @@ socket.on('timer_tick', ({ seconds }) => {
 });
 
 function updateTimerUI(left, max) {
-  q('#timer-text').textContent     = Math.max(0, left);
-  const frac   = Math.max(0, left / max);
-  q('#timer-prog').style.strokeDashoffset = CIRC * (1 - frac);
-  q('#timer-prog').classList.toggle('urgent', left <= 10);
+  const el = q('#timer-text');
+  if(el) el.textContent = Math.max(0, left);
+  const frac = Math.max(0, left / max);
+  const prog = q('#timer-prog');
+  if(prog) {
+    prog.style.strokeDashoffset = CIRC * (1 - frac);
+    prog.classList.toggle('urgent', left <= 10);
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -460,8 +521,8 @@ function updateHeader() {
     ? { id: 'cpu', name: 'CPU ♟', score: state.cpuScore }
     : state.players.find(p => p.id !== state.myId);
 
-  q('#p1-name').textContent = (me?.name || 'Tú').slice(0, 12);
-  q('#p2-name').textContent = (other?.name || '—').slice(0, 12);
+  const p1name = q('#p1-name'); if(p1name) p1name.textContent = (me?.name || 'Tú').slice(0, 12);
+  const p2name = q('#p2-name'); if(p2name) p2name.textContent = (other?.name || '—').slice(0, 12);
   renderPips('#p1-pips', me?.score || 0);
   renderPips('#p2-pips', other?.score || 0);
 }
@@ -471,8 +532,6 @@ function renderPips(sel, score) {
     pip.classList.toggle('filled', i < score);
   });
 }
-
-// (timer_tick already registered above — no duplicate needed)
 
 // ─────────────────────────────────────────────
 // UI HELPERS
@@ -484,12 +543,12 @@ function showScreen(name) {
 
 function setBadge(phase, label) {
   const b = q('#phase-badge');
-  b.textContent = label; b.className = `phase-badge ${phase}`;
+  if(b) { b.textContent = label; b.className = `phase-badge ${phase}`; }
 }
 
 function setStatus(msg, type = '') {
   const el = q('#status-msg');
-  el.textContent = msg; el.className = `status-msg ${type}`;
+  if(el) { el.textContent = msg; el.className = `status-msg ${type}`; }
 }
 
 function showPanel(name) {
@@ -674,7 +733,23 @@ function initMenu() {
     });
   });
 
-  // Home → Online
+  // Home → Matchmaking
+  q('#btn-find-match').addEventListener('click', () => {
+    state.isSolo = false; state.isCpu = false;
+    const name = (q('#home-name')?.value?.trim()) || 'Jugador';
+    state.myName = name; state.difficulty = selDiff;
+    const diffNames = ['Básico', 'Rotaciones', 'Espejos'];
+    const lbl = q('#match-diff-label'); if(lbl) lbl.textContent = `Nivel: ${diffNames[selDiff-1]} - Esperando...`;
+    showScreen('matching');
+    socket.emit('find_match', { playerName: name, difficulty: selDiff });
+  });
+
+  q('#btn-cancel-match').addEventListener('click', () => {
+    socket.emit('cancel_match');
+    showScreen('home');
+  });
+
+  // Home → Online (Room creation/join)
   q('#btn-play-online').addEventListener('click', () => {
     state.isSolo = false; state.isCpu = false;
     q('#lobby-error').classList.add('hidden');
@@ -719,6 +794,28 @@ function initMenu() {
     state.myName = name;
     socket.emit('join_room', { roomCode: code, playerName: name });
   }
+
+  socket.on('match_found', ({ roomCode, players, difficulty, playerId, playerName }) => {
+    state.difficulty = difficulty;
+    state.myId = playerId;
+    state.myName = playerName;
+    state.roomCode = roomCode;
+    q('#lobby-name').value = playerName;
+    q('#join-code-display').textContent = roomCode;
+    q('#lobby-status').textContent = '¡Oponente encontrado! Preparando...';
+    
+    // Simulate room join UI state so players see the room briefly before the game starts
+    showScreen('waiting');
+    qq('.player-slot').forEach(s => { s.classList.remove('filled'); s.querySelector('.player-slot-name').textContent = '—'; });
+    players.forEach((p, i) => {
+      const slot = q(i === 0 ? '#slot-host' : '#slot-guest');
+      if (slot) {
+        slot.classList.add('filled');
+        slot.querySelector('.player-slot-icon').textContent = '♚';
+        slot.querySelector('.player-slot-name').textContent = p.name;
+      }
+    });
+  });
 
   q('#btn-back-home').addEventListener('click', () => showScreen('home'));
 

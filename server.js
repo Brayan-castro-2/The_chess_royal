@@ -71,6 +71,7 @@ PUZZLES = generatePuzzles();
 // ─────────────────────────────────────────────
 const rooms       = new Map();
 const playerRooms = new Map();
+const matchQueues = { 1: [], 2: [], 3: [] };
 
 function genCode() {
   const ch = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -133,6 +134,7 @@ function startAnalysis(room) {
   room.round = {
     bids: {},
     boardState: [...puzzle.start],
+    currentGoal: [...puzzle.goal],
     moveCount: 0,
     activePlayerId: null,
     activePlayerBid: 99,
@@ -213,6 +215,7 @@ function startPlaying(room, isSteal) {
   }
 
   rd.boardState = [...room.currentPuzzle.start];
+  rd.currentGoal = [...room.currentPuzzle.goal];
   rd.moveCount  = 0;
 
   const T = 120;
@@ -248,7 +251,7 @@ function startPlaying(room, isSteal) {
 
 /** CPU animates solving the puzzle step by step */
 function cpuPlay(room) {
-  const path = GL.findSolutionPath([...room.round.boardState], room.currentPuzzle.goal);
+  const path = GL.findSolutionPath([...room.round.boardState], room.round.currentGoal);
   if (!path || path.length === 0) { endRound(room, null); return; }
 
   let step = 0;
@@ -264,9 +267,9 @@ function cpuPlay(room) {
     const board = room.round.boardState;
     board[to] = board[from]; board[from] = null;
     room.round.moveCount++;
-    const won = GL.checkWin(board, room.currentPuzzle.goal);
+    const won = GL.checkWin(board, room.round.currentGoal);
     io.to(room.id).emit('board_update', {
-      boardState: [...board], moveCount: room.round.moveCount, won, exceededBid: false,
+      boardState: [...board], moveCount: room.round.moveCount, won, exceededBid: false, currentGoal: [...room.round.currentGoal]
     });
     if (won) { clearTimers(room); endRound(room, 'cpu'); }
     else setTimeout(nextMove, 900 + Math.random() * 400);
@@ -276,10 +279,10 @@ function cpuPlay(room) {
 
 function handleMoveResult(room, socket, board, moveCount) {
   const rd = room.round;
-  const won  = GL.checkWin(board, room.currentPuzzle.goal);
-  const over = moveCount > rd.activePlayerBid;
+  const won  = GL.checkWin(board, rd.currentGoal);
+  const over = (!won && moveCount >= rd.activePlayerBid);
 
-  io.to(room.id).emit('board_update', { boardState: [...board], moveCount, won, exceededBid: over });
+  io.to(room.id).emit('board_update', { boardState: [...board], moveCount, won, exceededBid: over, currentGoal: [...rd.currentGoal] });
 
   if (won) {
     clearTimers(room); endRound(room, socket.id);
@@ -336,7 +339,7 @@ function soloStart(socket, room) {
   const puzzle = selectPuzzle(room);
   room.currentPuzzle = puzzle;
   room.phase = 'solo_playing';
-  room.round = { boardState: [...puzzle.start], moveCount: 0 };
+  room.round = { boardState: [...puzzle.start], moveCount: 0, currentGoal: [...puzzle.goal] };
   socket.emit('solo_puzzle', {
     puzzle: { start: puzzle.start, goal: puzzle.goal, minMoves: puzzle.minMoves },
     completed: room.usedIds.size,
@@ -429,10 +432,10 @@ io.on('connection', socket => {
       return socket.emit('error', { message: 'Espejos disponibles desde Nivel 3.' });
 
     const cost = type === 'rot180' ? 2 : 1;
-    const nb = GL.applyTransform(room.round.boardState, type);
-    room.round.boardState = nb;
+    const ng = GL.applyTransform(room.round.currentGoal, type);
+    room.round.currentGoal = ng;
     room.round.moveCount += cost;
-    handleMoveResult(room, socket, nb, room.round.moveCount);
+    handleMoveResult(room, socket, room.round.boardState, room.round.moveCount);
   });
 
   // ── SOLO ──
@@ -450,8 +453,8 @@ io.on('connection', socket => {
     if (!board[fromIdx] || !GL.getValidMoves(board, fromIdx).includes(toIdx)) return;
     board[toIdx] = board[fromIdx]; board[fromIdx] = null;
     room.round.moveCount++;
-    const won = GL.checkWin(board, room.currentPuzzle.goal);
-    socket.emit('solo_update', { boardState: [...board], moveCount: room.round.moveCount, won, minMoves: room.currentPuzzle.minMoves });
+    const won = GL.checkWin(board, room.round.currentGoal);
+    socket.emit('solo_update', { boardState: [...board], moveCount: room.round.moveCount, won, minMoves: room.currentPuzzle.minMoves, currentGoal: [...room.round.currentGoal] });
   });
 
   socket.on('solo_transform', ({ type }) => {
@@ -461,19 +464,63 @@ io.on('connection', socket => {
     if (room.difficulty < 2) return;
     if (room.difficulty < 3 && (type === 'mirH' || type === 'mirV')) return;
     const cost = type === 'rot180' ? 2 : 1;
-    const nb = GL.applyTransform(room.round.boardState, type);
-    room.round.boardState = nb;
+    const ng = GL.applyTransform(room.round.currentGoal, type);
+    room.round.currentGoal = ng;
     room.round.moveCount += cost;
-    const won = GL.checkWin(nb, room.currentPuzzle.goal);
-    socket.emit('solo_update', { boardState: [...nb], moveCount: room.round.moveCount, won, minMoves: room.currentPuzzle.minMoves });
+    const won = GL.checkWin(room.round.boardState, ng);
+    socket.emit('solo_update', { boardState: [...room.round.boardState], moveCount: room.round.moveCount, won, minMoves: room.currentPuzzle.minMoves, currentGoal: [...ng] });
   });
 
   socket.on('solo_reset', () => {
     const room = rooms.get(playerRooms.get(socket.id));
     if (!room || room.phase !== 'solo_playing') return;
     room.round.boardState = [...room.currentPuzzle.start];
+    room.round.currentGoal = [...room.currentPuzzle.goal];
     room.round.moveCount = 0;
-    socket.emit('solo_update', { boardState: [...room.currentPuzzle.start], moveCount: 0, won: false, minMoves: room.currentPuzzle.minMoves });
+    socket.emit('solo_update', { boardState: [...room.currentPuzzle.start], moveCount: 0, won: false, minMoves: room.currentPuzzle.minMoves, currentGoal: [...room.currentPuzzle.goal] });
+  });
+
+  // ── MATCHMAKING ──
+  socket.on('find_match', ({ playerName = 'Jugador', difficulty = 1 }) => {
+    const name = playerName.slice(0, 20);
+    const d = Number(difficulty);
+    const q = matchQueues[d];
+    
+    // Find valid waiting opponent
+    let opponent = null;
+    while (q && q.length > 0) {
+      const waitEntry = q.shift();
+      if (waitEntry.socket.connected) { opponent = waitEntry; break; }
+    }
+
+    if (opponent) {
+      // Match found! Create room.
+      const room = makeRoom(opponent.socket.id, opponent.playerName, d, false, false);
+      opponent.socket.join(room.id); playerRooms.set(opponent.socket.id, room.id);
+      
+      room.players.push({ id: socket.id, name, score: 0, isHost: false });
+      socket.join(room.id); playerRooms.set(socket.id, room.id);
+
+      const payload = {
+        roomCode: room.id,
+        difficulty: d,
+        players: room.players.map(p => ({ id: p.id, name: p.name, score: p.score }))
+      };
+
+      opponent.socket.emit('match_found', { ...payload, playerId: opponent.socket.id, playerName: opponent.playerName });
+      socket.emit('match_found', { ...payload, playerId: socket.id, playerName: name });
+
+      room.timer = setTimeout(() => { if (rooms.has(room.id)) startAnalysis(room); }, 1800);
+    } else {
+      if (q) q.push({ socket, playerName: name });
+    }
+  });
+
+  socket.on('cancel_match', () => {
+    Object.values(matchQueues).forEach(q => {
+      const idx = q.findIndex(e => e.socket.id === socket.id);
+      if (idx !== -1) q.splice(idx, 1);
+    });
   });
 
   socket.on('solo_next', () => {
@@ -483,6 +530,11 @@ io.on('connection', socket => {
   });
 
   socket.on('disconnect', () => {
+    Object.values(matchQueues).forEach(q => {
+      const idx = q.findIndex(e => e.socket.id === socket.id);
+      if (idx !== -1) q.splice(idx, 1);
+    });
+
     const code = playerRooms.get(socket.id);
     if (code) {
       const room = rooms.get(code);

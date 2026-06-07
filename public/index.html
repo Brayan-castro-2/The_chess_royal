@@ -31,7 +31,9 @@
   </div>
 
   <div class="home-modes">
-    <button id="btn-play-online" class="btn-primary w-full">🌐 &nbsp;Multijugador Online</button>
+    <button id="btn-find-match" class="btn-primary w-full">🔍 Buscar Partida</button>
+    <div style="text-align:center; color:var(--text3); font-size:0.8rem; margin:0.4rem 0;">— o —</div>
+    <button id="btn-play-online" class="btn-secondary w-full">Crear / Unirse a Sala</button>
     <button id="btn-play-cpu"    class="btn-cpu    w-full">🤖 &nbsp;Jugar vs CPU</button>
     <button id="btn-play-solo"   class="btn-secondary w-full">🧩 &nbsp;Modo Solitario</button>
     <button id="btn-how-to"      class="btn-outline  w-full">📖 &nbsp;Cómo Jugar</button>
@@ -42,7 +44,24 @@
     <input id="home-name" class="input-field" type="text" maxlength="20" placeholder="Tu nombre (opcional)">
   </div>
 
-  <p class="home-footer">Basado en el <a href="https://www.juegosbesa.com/es/juegos-de-logica/3376-the-royal-study-.html?affp=837" target="_blank" style="color:var(--gold2); text-decoration:none; font-weight:bold;">The Royal Study original</a> · Philos 2026</p>
+      <!-- VIDEO TUTORIAL -->
+      <div style="width:100%; max-width:380px; margin: 1.5rem auto 0; border-radius:12px; overflow:hidden; border:1px solid #d4af3740; box-shadow:0 8px 24px rgba(0,0,0,0.6);">
+        <div style="position: relative; padding-bottom: 56.25%; height: 0;">
+          <iframe src="https://www.youtube.com/embed/9PY5n2_ThE0?autoplay=1&mute=1&loop=1&playlist=9PY5n2_ThE0&cc_load_policy=1&cc_lang_pref=es" 
+                  style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" 
+                  allow="autoplay; encrypted-media" allowfullscreen></iframe>
+        </div>
+      </div>
+
+      <!-- PROMO BANNER -->
+      <a href="https://www.juegosbesa.com/es/juegos-de-logica/3376-the-royal-study-.html?affp=837" target="_blank" class="promo-banner" style="display:flex; align-items:center; gap:1rem; background:linear-gradient(145deg, #302a22, #1e1a15); border:1px solid #d4af3740; border-radius:12px; padding:0.8rem 1rem; margin-top:2rem; width:100%; max-width:380px; text-decoration:none; box-shadow:0 8px 24px rgba(0,0,0,0.6); transition:transform 0.2s, box-shadow 0.2s;">
+        <img src="/promo.webp" alt="The Royal Study Físico" style="width:60px; height:60px; object-fit:cover; border-radius:8px; border:1px solid #4a3c30;">
+        <div style="flex:1;">
+          <div style="color:var(--gold2); font-weight:700; font-size:0.85rem; letter-spacing:0.05em; margin-bottom:0.15rem; font-family:'Playfair Display',serif;">JUEGO FÍSICO ORIGINAL</div>
+          <div style="color:var(--text2); font-size:0.75rem; line-height:1.3;">Disfruta del auténtico puzzle de ajedrez en madera real.</div>
+        </div>
+        <div style="background:var(--gold); color:#1a1008; font-size:0.7rem; font-weight:800; text-transform:uppercase; padding:0.4rem 0.6rem; border-radius:6px;">Comprar</div>
+      </a>
 </section>
 
 <!-- ══════════════════════════════════════
@@ -116,6 +135,20 @@
 </section>
 
 <!-- ══════════════════════════════════════
+     MATCHING SCREEN
+══════════════════════════════════════ -->
+<section id="screen-matching" class="screen">
+  <div class="card" style="margin-top:3rem; text-align: center;">
+    <h2 class="card-title">Buscando Oponente</h2>
+    <div class="waiting-indicator">
+      <div class="pulse-dot"></div><div class="pulse-dot"></div><div class="pulse-dot"></div>
+    </div>
+    <p id="match-diff-label" style="color:var(--text2); font-size:0.9rem; margin-bottom: 2rem;">Nivel: ...</p>
+    <button id="btn-cancel-match" class="btn-reset w-full">Cancelar</button>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
      GAME
 ══════════════════════════════════════ -->
 <section id="screen-game" class="screen">
@@ -178,6 +211,33 @@
         </div>
       </div>
 
+      <!-- Transforms -->
+      <div id="transform-panel" class="panel hidden">
+        <div class="panel-label">Transformar Objetivo</div>
+        <div class="transform-grid">
+          <button class="btn-transform" onclick="requestTransform('rot90')" data-level="2">
+            <span class="t-icon">↻</span>
+            <span>Rotar 90°</span>
+            <span class="t-cost">+1 mov.</span>
+          </button>
+          <button class="btn-transform" onclick="requestTransform('rot180')" data-level="2">
+            <span class="t-icon">↺</span>
+            <span>Rotar 180°</span>
+            <span class="t-cost">+2 mov.</span>
+          </button>
+          <button class="btn-transform" onclick="requestTransform('mirH')" data-level="3">
+            <span class="t-icon">↔</span>
+            <span>Espejo ↔</span>
+            <span class="t-cost">+1 mov.</span>
+          </button>
+          <button class="btn-transform" onclick="requestTransform('mirV')" data-level="3">
+            <span class="t-icon">↕</span>
+            <span>Espejo ↕</span>
+            <span class="t-cost">+1 mov.</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Bid panel -->
       <div id="bid-panel" class="panel hidden">
         <div class="panel-label">Tu predicción de movimientos</div>
@@ -202,33 +262,6 @@
             <div class="bid-remaining ok" id="bid-remaining">∞</div>
             <div class="move-count-sub">restantes</div>
           </div>
-        </div>
-      </div>
-
-      <!-- Transforms -->
-      <div id="transform-panel" class="panel hidden">
-        <div class="panel-label">Transformar tablero</div>
-        <div class="transform-grid">
-          <button class="btn-transform" onclick="requestTransform('rot90')" data-level="2">
-            <span class="t-icon">↻</span>
-            <span>Rotar 90°</span>
-            <span class="t-cost">+1 mov.</span>
-          </button>
-          <button class="btn-transform" onclick="requestTransform('rot180')" data-level="2">
-            <span class="t-icon">↺</span>
-            <span>Rotar 180°</span>
-            <span class="t-cost">+2 mov.</span>
-          </button>
-          <button class="btn-transform" onclick="requestTransform('mirH')" data-level="3">
-            <span class="t-icon">↔</span>
-            <span>Espejo ↔</span>
-            <span class="t-cost">+1 mov.</span>
-          </button>
-          <button class="btn-transform" onclick="requestTransform('mirV')" data-level="3">
-            <span class="t-icon">↕</span>
-            <span>Espejo ↕</span>
-            <span class="t-cost">+1 mov.</span>
-          </button>
         </div>
       </div>
 
