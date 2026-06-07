@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="description" content="The Royal Study — Puzzles de ajedrez 3×3. Modo solitario, vs CPU o multijugador online.">
+  <title>The Royal Study</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♚</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     HOME
+══════════════════════════════════════ -->
+<section id="screen-home" class="screen active">
+  <div class="home-hero">
+    <span class="home-crown">♚</span>
+    <h1 class="home-logo">The Royal Study</h1>
+    <p class="home-tagline">El puzzle de ajedrez estratégico · 3×3</p>
+  </div>
+
+  <!-- Difficulty selector (shared for all modes) -->
+  <div style="width:100%;max-width:360px;margin:0 auto .3rem">
+    <p class="home-diff-label">Nivel de juego</p>
+    <div class="home-diff-row difficulty-tabs">
+      <button class="diff-tab" data-diff="1">⚔️ Básico</button>
+      <button class="diff-tab" data-diff="2">↻ Rotaciones</button>
+      <button class="diff-tab active" data-diff="3">↔ Espejos</button>
+    </div>
+  </div>
+
+  <div class="home-modes">
+    <button id="btn-play-online" class="btn-primary w-full">🌐 &nbsp;Multijugador Online</button>
+    <button id="btn-play-cpu"    class="btn-cpu    w-full">🤖 &nbsp;Jugar vs CPU</button>
+    <button id="btn-play-solo"   class="btn-secondary w-full">🧩 &nbsp;Modo Solitario</button>
+    <button id="btn-how-to"      class="btn-outline  w-full">📖 &nbsp;Cómo Jugar</button>
+  </div>
+
+  <!-- Name for solo/CPU (quick input) -->
+  <div style="width:100%;max-width:360px;margin:0 auto .5rem">
+    <input id="home-name" class="input-field" type="text" maxlength="20" placeholder="Tu nombre (opcional)">
+  </div>
+
+  <p class="home-footer">Basado en el <a href="https://www.juegosbesa.com/es/juegos-de-logica/3376-the-royal-study-.html?affp=837" target="_blank" style="color:var(--gold2); text-decoration:none; font-weight:bold;">The Royal Study original</a> · Philos 2026</p>
+</section>
+
+<!-- ══════════════════════════════════════
+     LOBBY
+══════════════════════════════════════ -->
+<section id="screen-lobby" class="screen">
+  <div class="card" style="margin-top:3rem">
+    <h2 class="card-title">Partida Online</h2>
+
+    <div class="input-group">
+      <label class="input-label" for="lobby-name">Tu nombre</label>
+      <input id="lobby-name" class="input-field" type="text" maxlength="20" placeholder="Ej: Magnus">
+    </div>
+
+    <div class="input-group">
+      <label class="input-label">Nivel de juego</label>
+      <div class="difficulty-tabs">
+        <button class="diff-tab" data-diff="1">⚔️ Básico</button>
+        <button class="diff-tab" data-diff="2">↻ Rotaciones</button>
+        <button class="diff-tab active" data-diff="3">↔ Espejos</button>
+      </div>
+    </div>
+
+    <button id="btn-create-room" class="btn-primary w-full mb-sm">Crear Sala</button>
+
+    <div class="divider">o únete con código</div>
+
+    <div class="input-group">
+      <label class="input-label" for="join-code">Código de sala</label>
+      <input id="join-code" class="input-field code-field" type="text" maxlength="4" placeholder="ABCD">
+    </div>
+    <button id="btn-join-room" class="btn-secondary w-full mb-sm">Unirse a Sala</button>
+    <button id="btn-back-home" class="btn-outline w-full mt-sm">← Volver</button>
+
+    <p id="lobby-error" class="status-msg danger mt-sm hidden"></p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     WAITING ROOM
+══════════════════════════════════════ -->
+<section id="screen-waiting" class="screen">
+  <div class="card" style="margin-top:3rem">
+    <h2 class="card-title">Sala Creada</h2>
+
+    <div class="room-code-display">
+      <p class="room-code-label">Comparte este código con tu rival</p>
+      <div id="display-room-code" class="room-code-value">----</div>
+    </div>
+
+    <div class="player-slots">
+      <div class="player-slot filled" id="slot-host">
+        <div class="player-slot-icon">♔</div>
+        <div id="slot-host-name" class="player-slot-name">Tú</div>
+        <div class="player-slot-label">Anfitrión</div>
+      </div>
+      <div class="player-slot" id="slot-guest">
+        <div class="player-slot-icon">⋯</div>
+        <div class="player-slot-name">Esperando…</div>
+        <div class="player-slot-label">Invitado</div>
+      </div>
+    </div>
+
+    <div class="waiting-indicator">
+      <div class="pulse-dot"></div><div class="pulse-dot"></div><div class="pulse-dot"></div>
+      <span>Esperando oponente</span>
+    </div>
+
+    <button id="btn-cancel-wait" class="btn-outline w-full mt-sm">Cancelar</button>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     GAME
+══════════════════════════════════════ -->
+<section id="screen-game" class="screen">
+
+  <header class="game-header">
+    <div class="scores-bar">
+      <div class="score-block">
+        <div id="p1-name" class="score-name">Tú</div>
+        <div id="p1-pips" class="score-pips">
+          <div class="score-pip"></div><div class="score-pip"></div><div class="score-pip"></div>
+          <div class="score-pip"></div><div class="score-pip"></div><div class="score-pip"></div>
+        </div>
+      </div>
+      <div class="score-vs">vs</div>
+      <div class="score-block">
+        <div id="p2-name" class="score-name">—</div>
+        <div id="p2-pips" class="score-pips">
+          <div class="score-pip"></div><div class="score-pip"></div><div class="score-pip"></div>
+          <div class="score-pip"></div><div class="score-pip"></div><div class="score-pip"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="phase-badge" class="phase-badge">—</div>
+
+    <div class="timer-wrap">
+      <svg class="timer-svg" width="46" height="46">
+        <circle class="timer-track" cx="23" cy="23" r="20"/>
+        <circle id="timer-prog" class="timer-prog" cx="23" cy="23" r="20"
+          stroke-dasharray="125.66" stroke-dashoffset="0"/>
+      </svg>
+      <span id="timer-text" class="timer-text">—</span>
+    </div>
+  </header>
+
+  <main class="game-body">
+
+    <!-- Board -->
+    <div class="board-wrap">
+      <div id="game-board" class="board-grid"></div>
+    </div>
+
+    <!-- Side panel -->
+    <aside class="game-side">
+
+      <div id="status-msg" class="status-msg">Esperando…</div>
+
+      <!-- Goal -->
+      <div class="panel">
+        <div class="panel-label">Objetivo</div>
+        <div class="goal-wrap">
+          <div id="goal-board" class="goal-grid"></div>
+          <div class="goal-info">
+            <div>
+              <div class="panel-label" style="margin-bottom:.15rem">Modo</div>
+              <div id="diff-stars" class="diff-stars">★☆☆</div>
+              <div id="diff-mode-label" class="diff-mode-label">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bid panel -->
+      <div id="bid-panel" class="panel hidden">
+        <div class="panel-label">Tu predicción de movimientos</div>
+        <div class="bid-controls">
+          <button class="bid-btn" id="bid-minus">−</button>
+          <div id="bid-value" class="bid-value">5</div>
+          <button class="bid-btn" id="bid-plus">+</button>
+        </div>
+        <div class="bid-sub">Menor predicción → actúa primero. Si no resuelves → punto al rival.</div>
+        <button id="btn-submit-bid" class="btn-bid-submit">Confirmar predicción ✓</button>
+      </div>
+
+      <!-- Move counter -->
+      <div id="move-panel" class="panel hidden">
+        <div class="panel-label">Progreso</div>
+        <div class="move-counter">
+          <div>
+            <div class="move-count-val" id="move-count">0</div>
+            <div class="move-count-sub">movimientos</div>
+          </div>
+          <div style="text-align:right">
+            <div class="bid-remaining ok" id="bid-remaining">∞</div>
+            <div class="move-count-sub">restantes</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transforms -->
+      <div id="transform-panel" class="panel hidden">
+        <div class="panel-label">Transformar tablero</div>
+        <div class="transform-grid">
+          <button class="btn-transform" onclick="requestTransform('rot90')" data-level="2">
+            <span class="t-icon">↻</span>
+            <span>Rotar 90°</span>
+            <span class="t-cost">+1 mov.</span>
+          </button>
+          <button class="btn-transform" onclick="requestTransform('rot180')" data-level="2">
+            <span class="t-icon">↺</span>
+            <span>Rotar 180°</span>
+            <span class="t-cost">+2 mov.</span>
+          </button>
+          <button class="btn-transform" onclick="requestTransform('mirH')" data-level="3">
+            <span class="t-icon">↔</span>
+            <span>Espejo ↔</span>
+            <span class="t-cost">+1 mov.</span>
+          </button>
+          <button class="btn-transform" onclick="requestTransform('mirV')" data-level="3">
+            <span class="t-icon">↕</span>
+            <span>Espejo ↕</span>
+            <span class="t-cost">+1 mov.</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="flex gap-sm">
+        <button id="btn-solo-reset" class="btn-reset hidden" style="flex:1">↺ Reiniciar</button>
+        <button id="btn-solo-next"  class="btn-reset hidden" style="flex:1">Siguiente →</button>
+        <button id="btn-quit-game"  class="btn-reset hidden" style="flex:1">✕ Salir</button>
+      </div>
+
+    </aside>
+  </main>
+</section>
+
+<!-- ══════════════════════════════════════
+     ROUND RESULT
+══════════════════════════════════════ -->
+<section id="screen-result" class="screen">
+  <div class="result-card">
+    <div id="result-icon" class="result-icon">🏆</div>
+    <h2 id="result-title" class="result-title">¡Resuelto!</h2>
+    <p  id="result-sub"   class="result-sub">—</p>
+    <div class="result-stats">
+      <div class="result-stat">
+        <div id="result-moves" class="result-stat-val">—</div>
+        <div class="result-stat-label">movimientos</div>
+      </div>
+    </div>
+    <div class="result-scores">
+      <div class="result-score-block">
+        <div id="res-p1-name"  class="result-score-name">Tú</div>
+        <div id="res-p1-score" class="result-score-num">0</div>
+      </div>
+      <div class="result-score-vs">–</div>
+      <div class="result-score-block">
+        <div id="res-p2-name"  class="result-score-name">Rival</div>
+        <div id="res-p2-score" class="result-score-num">0</div>
+      </div>
+    </div>
+    <p class="status-msg info">Próximo puzzle en unos segundos…</p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     GAME OVER
+══════════════════════════════════════ -->
+<section id="screen-gameover" class="screen">
+  <div class="gameover-card">
+    <div class="gameover-trophy">🏆</div>
+    <h1 class="gameover-title">¡Partida Finalizada!</h1>
+    <p id="gameover-winner-msg" class="gameover-winner">El ganador es <strong>—</strong></p>
+    <div class="final-scores" id="final-scores"></div>
+    <button id="btn-play-again"    class="btn-primary  w-full mb-sm">Jugar de Nuevo</button>
+    <button id="btn-home-from-over" class="btn-outline w-full">Menú Principal</button>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     OVERLAY: Analyzing
+══════════════════════════════════════ -->
+<div id="overlay-analyzing" class="overlay">
+  <div class="overlay-card">
+    <div class="overlay-icon">🔍</div>
+    <h3 class="overlay-title">¡Analiza el puzzle!</h3>
+    <p class="overlay-sub">Estudia el tablero inicial y el objetivo.<br>Decide cuántos movimientos crees que necesitas.<br><strong>Si no resuelves en tu predicción → punto al rival.</strong></p>
+    <button id="btn-close-analyzing" class="btn-primary w-full">Entendido, ¡a analizar!</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     OVERLAY: Bid Reveal
+══════════════════════════════════════ -->
+<div id="overlay-bids" class="overlay">
+  <div class="overlay-card">
+    <div class="overlay-icon">⚔️</div>
+    <h3 class="overlay-title">Predicciones</h3>
+    <div class="bids-reveal-row">
+      <div class="bid-reveal-block" id="bid-block-0">
+        <div class="bid-reveal-name" id="bid-name-0">—</div>
+        <div class="bid-reveal-num"  id="bid-num-0">—</div>
+        <div class="bid-reveal-label">movimientos</div>
+      </div>
+      <div class="bid-reveal-block" id="bid-block-1">
+        <div class="bid-reveal-name" id="bid-name-1">—</div>
+        <div class="bid-reveal-num"  id="bid-num-1">—</div>
+        <div class="bid-reveal-label">movimientos</div>
+      </div>
+    </div>
+    <p id="bid-reveal-msg" class="overlay-sub"></p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     HOW TO PLAY
+══════════════════════════════════════ -->
+<div id="how-to-overlay">
+  <div class="how-to-card">
+    <h2 class="how-to-title">Cómo Jugar</h2>
+
+    <div class="rules-section">
+      <h3>El Objetivo</h3>
+      <p>Mueve las piezas de ajedrez desde la posición inicial hasta la posición objetivo. El número de movimientos importa.</p>
+    </div>
+
+    <div class="rules-section">
+      <h3>Las Piezas</h3>
+      <table class="piece-table">
+        <tr><td>♚</td><td>Rey</td><td>1 casilla en cualquier dirección</td></tr>
+        <tr><td>♛</td><td>Dama</td><td>Cualquier dirección y distancia</td></tr>
+        <tr><td>♜</td><td>Torre</td><td>Horizontal/vertical (bloqueada por piezas)</td></tr>
+        <tr><td>♝</td><td>Alfil</td><td>Solo diagonal (bloqueado por piezas)</td></tr>
+        <tr><td>♞</td><td>Caballo</td><td>En L · puede saltar sobre otras piezas</td></tr>
+      </table>
+    </div>
+
+    <div class="rules-section">
+      <h3>Cómo Mover</h3>
+      <p>🖱️ <strong>Click:</strong> selecciona una pieza → los puntos verdes son movimientos válidos → haz click en el destino.<br>
+      ✋ <strong>Arrastrar:</strong> mantén presionada la pieza y suéltala donde quieres moverla.</p>
+    </div>
+
+    <div class="rules-section">
+      <h3>Transformaciones del tablero</h3>
+      <table class="transform-table">
+        <tr><td>↻</td><td>Rotar 90°</td><td>+1 mov.</td></tr>
+        <tr><td>↺</td><td>Rotar 180°</td><td>+2 mov.</td></tr>
+        <tr><td>↔</td><td>Espejo horizontal</td><td>+1 mov.</td></tr>
+        <tr><td>↕</td><td>Espejo vertical</td><td>+1 mov.</td></tr>
+      </table>
+    </div>
+
+    <div class="rules-section">
+      <h3>Multijugador / vs CPU</h3>
+      <ul>
+        <li><strong>Análisis (35 seg):</strong> Ambos estudian el puzzle.</li>
+        <li><strong>Predicción:</strong> Cada uno propone cuántos movimientos necesita. El menor número va primero.</li>
+        <li><strong>Ejecución (65 seg):</strong> El primero resuelve. Si supera su predicción → el rival puede robar.</li>
+        <li><strong>Victoria:</strong> Primero en llegar a <strong>6 puntos</strong> gana.</li>
+      </ul>
+    </div>
+
+    <div class="rules-section">
+      <h3>Niveles de Juego</h3>
+      <ul>
+        <li>⭐ <strong>Básico:</strong> Solo movimientos de piezas.</li>
+        <li>⭐⭐ <strong>Rotaciones:</strong> Puedes rotar el tablero (+movimientos).</li>
+        <li>⭐⭐⭐ <strong>Espejos:</strong> Rotaciones + espejos en cualquier dirección.</li>
+      </ul>
+    </div>
+
+    <button class="btn-secondary w-full mt-sm" onclick="closeHowTo()">Cerrar</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="gameLogic.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
