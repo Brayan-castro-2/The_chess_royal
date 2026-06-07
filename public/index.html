@@ -7,6 +7,9 @@
   <title>The Royal Study</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♚</text></svg>">
   <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#d4af37">
+  <link rel="apple-touch-icon" href="/promo.webp">
   <script>
     // Traducción automática al inglés si el navegador está en inglés
     if (navigator.language.startsWith('en') && document.cookie.indexOf('googtrans') === -1) {
@@ -238,11 +241,16 @@
         <div class="transform-grid">
           <button class="btn-transform" onclick="requestTransform('rot90')" data-level="2">
             <span class="t-icon">↻</span>
-            <span>Rotar 90°</span>
+            <span>Rotar 90° (Der)</span>
+            <span class="t-cost">+1 mov.</span>
+          </button>
+          <button class="btn-transform" onclick="requestTransform('rot-90')" data-level="2">
+            <span class="t-icon">↺</span>
+            <span>Rotar 90° (Izq)</span>
             <span class="t-cost">+1 mov.</span>
           </button>
           <button class="btn-transform" onclick="requestTransform('rot180')" data-level="2">
-            <span class="t-icon">↺</span>
+            <span class="t-icon">↕</span>
             <span>Rotar 180°</span>
             <span class="t-cost">+2 mov.</span>
           </button>
@@ -437,8 +445,19 @@
 <!-- Toast -->
 <div id="toast" class="toast"></div>
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="gameLogic.js"></script>
-<script src="app.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="gameLogic.js"></script>
+  <script src="puzzles.js"></script>
+  <script src="localGame.js"></script>
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => {
+          console.log('SW registration failed: ', err);
+        });
+      });
+    }
+  </script>
 </body>
 </html>

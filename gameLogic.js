@@ -70,6 +70,13 @@
       }
       return n;
     }
+    if (type === 'rot-90') {
+      for (let i = 0; i < 9; i++) {
+        const r = Math.floor(i / 3), c = i % 3;
+        n[(2 - c) * 3 + r] = b[i];
+      }
+      return n;
+    }
     if (type === 'rot180') return [...b].reverse();
     if (type === 'mirH') {
       for (let r = 0; r < 3; r++)

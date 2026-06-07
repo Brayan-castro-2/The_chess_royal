@@ -254,7 +254,10 @@ input  { font-family:inherit; outline:none; }
 .board-cell.drag-over::after { transform:scale(1.35) !important; }
 
 /* ── LAST MOVE ── */
-.board-cell.last-from, .board-cell.last-to { background:rgba(200,164,90,.4) !important; }
+.board-cell.last-from, .board-cell.last-to { 
+  background:rgba(200,164,90,.3) !important; 
+  box-shadow: inset 0 0 0 3px rgba(200,164,90, 0.6) !important;
+}
 
 /* ── PIECE ── */
 .piece {

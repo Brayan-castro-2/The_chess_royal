@@ -438,11 +438,24 @@ function performMove(fromIdx, toIdx) {
 
   // Optimistic local update
   const nb = [...state.boardState];
-  nb[toIdx] = nb[fromIdx]; nb[fromIdx] = null;
+  nb[to] = nb[fromIdx]; nb[fromIdx] = null;
   renderBoard(nb, false); // disable while waiting server ack
 
-  if (state.isSolo) socket.emit('solo_move',  { fromIdx, toIdx });
-  else              socket.emit('make_move',   { fromIdx, toIdx });
+  if (state.isSolo) {
+    if (state.roomCode) {
+      socket.emit('make_move', { from: drag.fromIdx, to });
+    } else {
+      localMakeMove(drag.fromIdx, to);
+    }
+    return;
+  }
+
+  // Multiply logic
+  if (!state.roomCode) {
+    localMakeMove(drag.fromIdx, to);
+  } else {
+    socket.emit('make_move', { from: drag.fromIdx, to });
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -451,14 +464,17 @@ function performMove(fromIdx, toIdx) {
 let isAnimatingGoal = false;
 
 function requestTransform(type) {
-  if (!isMyTurn() || isAnimatingGoal) return;
+  if (isAnimatingGoal) return;
+  if (!state.isSolo && !isMyTurn()) return;
+  
   isAnimatingGoal = true;
-  const cost = type === 'rot180' ? 2 : 1;
+  const cost = (type.includes('mir') || type === 'rot180') ? 2 : 1;
 
   const ng = GL.applyTransform(state.currentGoal, type);
   const el = q('#goal-board');
   el.style.transition = 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
   if (type === 'rot90') el.style.transform = 'rotate(90deg)';
+  else if (type === 'rot-90') el.style.transform = 'rotate(-90deg)';
   else if (type === 'rot180') el.style.transform = 'rotate(180deg)';
   else if (type === 'mirH') el.style.transform = 'scaleX(-1)';
   else if (type === 'mirV') el.style.transform = 'scaleY(-1)';
@@ -469,10 +485,42 @@ function requestTransform(type) {
     state.currentGoal = ng;
     renderGoal(ng);
     isAnimatingGoal = false;
+    
+    if (state.isSolo) {
+      if (!state.roomCode) {
+        state.moveCount += cost;
+        const won = GL.checkWin(state.boardState, state.currentGoal);
+        updateMoveCounter(state.moveCount, state.puzzle.minMoves);
+        if (won) {
+          toast('¡Completado! Generando siguiente...');
+          setTimeout(localSoloNext, 1500);
+        }
+      } else {
+        socket.emit('request_transform', { type });
+      }
+    } else {
+      if (!state.roomCode) {
+        state.moveCount += cost;
+        const won = GL.checkWin(state.boardState, state.currentGoal);
+        updateMoveCounter(state.moveCount, state.activePlayerBid);
+        if (won) {
+          clearTimeout(localTimer); clearInterval(localTick);
+          localEndRound('player');
+        } else if (state.moveCount >= state.activePlayerBid) {
+          clearTimeout(localTimer); clearInterval(localTick);
+          if (state.phase === 'stealing') localEndRound(null);
+          else {
+            toast('Límite excedido. ¡Robo de CPU!');
+            state.activePlayerId = 'cpu';
+            setTimeout(() => localStartPlaying(true), 2500);
+          }
+        }
+      } else {
+        socket.emit('request_transform', { type });
+      }
+    }
   }, 400);
-
-  if (state.isSolo) socket.emit('solo_transform', { type });
-  else              socket.emit('apply_transform', { type });
+  
   toast(`Objetivo transformado (+${cost} mov.)`);
 }
 
@@ -713,7 +761,11 @@ function initBidControls() {
   q('#btn-submit-bid').addEventListener('click', () => {
     if (state.bidSubmitted) return;
     state.bidSubmitted = true;
-    socket.emit('submit_bid', { bid: state.myBid });
+    if (!state.roomCode && state.isCpu) {
+      localSubmitBid();
+    } else {
+      socket.emit('submit_bid', { bid: state.myBid });
+    }
   });
 }
 
@@ -759,18 +811,16 @@ function initMenu() {
 
   // Home → Solo
   q('#btn-play-solo').addEventListener('click', () => {
-    state.isSolo = true; state.isCpu = false;
     const name = (q('#home-name')?.value?.trim()) || 'Jugador';
     state.myName = name; state.difficulty = selDiff;
-    socket.emit('start_solo', { difficulty: selDiff, playerName: name });
+    localStartSolo();
   });
 
   // Home → vs CPU
   q('#btn-play-cpu').addEventListener('click', () => {
-    state.isSolo = false; state.isCpu = true;
     const name = (q('#home-name')?.value?.trim()) || 'Jugador';
     state.myName = name; state.difficulty = selDiff;
-    socket.emit('start_vs_cpu', { playerName: name, difficulty: selDiff });
+    localStartCpu();
   });
 
   // Home → How to
